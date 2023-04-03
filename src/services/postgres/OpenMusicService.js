@@ -6,8 +6,9 @@ const {songDBToModel, albumDBToModel} = require('../../utils')
 
 
 class OpenMusicService {
-    constructor() {
+    constructor(cacheService) {
         this._pool = new Pool()
+        this._cacheService = cacheService
     }
 
     async addAlbum({name, year}) {
@@ -129,6 +130,90 @@ class OpenMusicService {
         const result = await this._pool.query(query)
 
         if(!result.rows.length) throw new NotFoundError('Song gagal dihapus. Id tidak ditemukan')
+    }
+
+    async updateCoverUrlALbum(filename, albumId) {
+        const query = {
+            text: 'update albums set cover = $1 where id = $2 returning id',
+            values: [filename, albumId]
+        }
+
+        const result = await this._pool.query(query)
+        if(!result.rows.length) throw new NotFoundError('Gagal update cover album. Album tidak ditemukan')
+    }    
+
+    async postAlbumLike(albumId, userId) {     
+
+        // check if album exist
+        await this.getAlbumById(albumId)    
+                
+        // check if already hit like
+        await this.checkAlbumLikeByUser(albumId, userId)
+        
+        const id = nanoid(16)
+        // input like album
+        const query = {
+            text: 'insert into user_album_likes values ($1, $2, $3) returning id',
+            values: [id, userId, albumId]
+        }
+
+        const result = await this._pool.query(query)
+
+        if(!result.rows.length) throw new InvariantError('Gagal menyimpan like')        
+
+        await this._cacheService.delete(`likes:${albumId}`); // remove cache 
+        return result.rows[0].id
+    }
+
+    async checkAlbumLikeByUser(albumId, userId) {        
+        const query = {
+            text: 'select * from user_album_likes where user_id = $1 and album_id = $2',
+            values: [userId, albumId]
+        }
+
+        const result = await this._pool.query(query)
+
+        if(result.rows.length) throw new InvariantError('Album sudah anda sukai.')
+    }   
+    
+    async getAlbumLike(albumId) {
+        try {
+            const result = await this._cacheService.get(`likes:${albumId}`)
+            return {
+                type: 'from-cache',
+                total: result
+            }
+        } catch (error) {
+            const query = {
+                text: 'select count(*) total from user_album_likes where album_id = $1 group by album_id',
+                values: [albumId]
+            }
+    
+            const result = await this._pool.query(query)
+            const total = result.rows[0].total
+
+            // add to cache
+            await this._cacheService.set(`likes:${albumId}`, total)
+    
+            return {
+                type: 'from-db',
+                total: total
+            }
+        }
+        
+    }
+
+    async deleteAlbumLike(userId, albumId) {
+        const query = {
+            text: 'delete from user_album_likes where user_id = $1 and album_id = $2 returning id',
+            values: [userId, albumId]
+        }
+
+        const result = await this._pool.query(query)
+        
+        if(!result.rows.length) throw new NotFoundError('Like gagal dihapus. Album like tidak ditemukan')        
+
+        await this._cacheService.delete(`likes:${albumId}`); // remove cache 
     }
 }
 

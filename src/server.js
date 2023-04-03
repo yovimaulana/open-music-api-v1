@@ -31,16 +31,30 @@ const collaborations = require('./api/collaborations')
 const CollaborationsService = require('./services/postgres/CollaborationsService')
 const CollaborationsValidator = require('./validator/collaborations')
 
+// exports
+const _exports = require('./api/exports')
+const ProducerService = require('./services/rabbitmq/ProducerService')
+const ExportsValidator = require('./validator/exports')
+
+// uploads
+const uploads = require('./api/uploads')
+const StorageService = require('./services/S3/StorageService')
+const UploadsValidator = require('./validator/uploads')
+
+// cache
+const CacheService = require('./services/redis/CacheService')
+
 
 const ClientError = require('./exceptions/ClientError')
 
 const init = async () => {
-
+    const cacheService = new CacheService()
     const collaborationsService = new CollaborationsService()
     const playlistsService = new PlaylistsService(collaborationsService)
-    const openMusicService = new OpenMusicService()
+    const openMusicService = new OpenMusicService(cacheService)
     const usersService = new UsersService()
     const authenticationsService = new AuthenticationsService()
+    const storageService = new StorageService()
 
 
     const server = Hapi.server({
@@ -115,7 +129,23 @@ const init = async () => {
                 playlistsService,
                 validator: CollaborationsValidator
             }
-        }   
+        },
+        {
+            plugin: _exports,
+            options: {                
+                ProducerService,
+                playlistsService,
+                validator: ExportsValidator,
+            },
+        },  
+        {
+            plugin: uploads,
+            options: {
+              storageService,
+              openMusicService,
+              validator: UploadsValidator,
+            },
+        }        
     ])
 
     server.ext('onPreResponse', (request, h) => {

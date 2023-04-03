@@ -11,7 +11,11 @@ class OpenMusicHandler {
         this.getAllSongsHandler = this.getAllSongsHandler.bind(this)
         this.getSongByIdHandler = this.getSongByIdHandler.bind(this)
         this.putSongByIdHandler = this.putSongByIdHandler.bind(this)
-        this.deleteSongByIdHandler = this.deleteSongByIdHandler.bind(this)        
+        this.deleteSongByIdHandler = this.deleteSongByIdHandler.bind(this)     
+        
+        this.postAlbumLikeHandler = this.postAlbumLikeHandler.bind(this)
+        this.getAlbumLikeHandler = this.getAlbumLikeHandler.bind(this)
+        this.deleteAlbumLikeHandler = this.deleteAlbumLikeHandler.bind(this)
     }
 
     async postAlbumHandler(request, h) {
@@ -122,6 +126,41 @@ class OpenMusicHandler {
             status: 'success',
             message: 'Berhasil menghapus song'
         }
+    } 
+    
+    async postAlbumLikeHandler(request, h) {
+        const {id: userId} = request.auth.credentials
+        const {id: albumId} = request.params                    
+        await this._service.postAlbumLike(albumId, userId)
+        const response = h.response({
+            status: 'success',
+            message: 'Berhasil menyimpan like album'
+        })
+        response.code(201)
+        return response
+    }
+
+    async deleteAlbumLikeHandler(request, h) {        
+        const {id: userId} = request.auth.credentials
+        const {id: albumId} = request.params  
+        await this._service.deleteAlbumLike(userId, albumId)
+        return {
+            status: 'success',
+            message: 'Berhasil menghapus like album'
+        }
+    }
+
+    async getAlbumLikeHandler(request, h) {
+        const {id: albumId} = request.params   
+        const likes = await this._service.getAlbumLike(albumId)
+        const response = h.response({
+            status: 'success',
+            data: {
+                likes: parseInt(likes.total)
+            }
+        })
+        if(likes.type === 'from-cache') response.header('X-Data-Source', 'cache');
+        return response        
     }
 }
 

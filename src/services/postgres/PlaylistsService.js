@@ -1,6 +1,5 @@
 const {Pool} = require('pg')
 const { nanoid } = require('nanoid')
-const { mapPlaylistDbToModel } = require('../../utils')
 const NotFoundError = require('../../exceptions/NotFoundError')
 const AuthorizationError = require('../../exceptions/AuthorizationError')
 const InvariantError = require('../../exceptions/InvariantError')
